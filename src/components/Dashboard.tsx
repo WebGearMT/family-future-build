@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Users, Briefcase, FileText, LogOut } from 'lucide-react';
+import { User, Users, Briefcase, FileText, LogOut, BookOpen } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import FamilyDetails from './profile/FamilyDetails';
 import EmploymentHistory from './profile/EmploymentHistory';
 import ResumeUpload from './profile/ResumeUpload';
@@ -15,6 +16,8 @@ interface DashboardProps {
 }
 
 const Dashboard = ({ user, onSignOut }: DashboardProps) => {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
@@ -25,6 +28,14 @@ const Dashboard = ({ user, onSignOut }: DashboardProps) => {
               <h1 className="text-2xl font-bold text-gray-900">ProfileHub</h1>
             </div>
             <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/resources')}
+                className="flex items-center space-x-2 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+              >
+                <BookOpen className="h-4 w-4" />
+                <span>NC Resources</span>
+              </Button>
               <span className="text-gray-700">Welcome, {user.name}</span>
               <Button 
                 variant="outline" 
