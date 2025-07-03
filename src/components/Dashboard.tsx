@@ -19,24 +19,24 @@ const Dashboard = ({ user, onSignOut }: DashboardProps) => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 to-sky-200">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <h1 className="text-2xl font-bold text-gray-900">ProfileHub</h1>
+              <h1 className="text-2xl font-bold text-blue-900">ProfileHub</h1>
             </div>
             <div className="flex items-center space-x-4">
               <Button 
                 variant="outline" 
                 onClick={() => navigate('/resources')}
-                className="flex items-center space-x-2 hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                className="flex items-center space-x-2 hover:bg-blue-50 hover:border-blue-400 transition-colors border-blue-300"
               >
                 <BookOpen className="h-4 w-4" />
                 <span>NC Resources</span>
               </Button>
-              <span className="text-gray-700">Welcome, {user.name}</span>
+              <span className="text-blue-900">Welcome, {user.name}</span>
               <Button 
                 variant="outline" 
                 onClick={onSignOut}
@@ -52,8 +52,8 @@ const Dashboard = ({ user, onSignOut }: DashboardProps) => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Your Profile Dashboard</h2>
-          <p className="text-gray-600">Manage your personal information, family details, and professional profile.</p>
+          <h2 className="text-3xl font-bold text-blue-900 mb-2">Your Profile Dashboard</h2>
+          <p className="text-blue-800">Manage your personal information, family details, and professional profile.</p>
         </div>
 
         <Tabs defaultValue="personal" className="w-full">

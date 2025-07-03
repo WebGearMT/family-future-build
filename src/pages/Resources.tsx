@@ -89,7 +89,7 @@ const Resources = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-100 to-sky-200">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -98,12 +98,12 @@ const Resources = () => {
               <Button 
                 variant="ghost" 
                 onClick={() => navigate('/')}
-                className="flex items-center space-x-2 hover:bg-gray-100"
+                className="flex items-center space-x-2 hover:bg-blue-100"
               >
                 <ArrowLeft className="h-4 w-4" />
                 <span>Back to Dashboard</span>
               </Button>
-              <h1 className="text-2xl font-bold text-gray-900">North Carolina Resources</h1>
+              <h1 className="text-2xl font-bold text-blue-900">North Carolina Resources</h1>
             </div>
           </div>
         </div>
@@ -111,8 +111,8 @@ const Resources = () => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">Essential Services Guide</h2>
-          <p className="text-gray-600">Everything you need to know about getting started in North Carolina.</p>
+          <h2 className="text-3xl font-bold text-blue-900 mb-2">Essential Services Guide</h2>
+          <p className="text-blue-800">Everything you need to know about getting started in North Carolina.</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -122,7 +122,7 @@ const Resources = () => {
               <Card key={resource.title} className="hover:shadow-lg transition-shadow duration-300">
                 <CardHeader>
                   <div className="flex items-center space-x-3">
-                    <Icon className="h-6 w-6 text-blue-600" />
+                    <Icon className="h-6 w-6 text-sky-600" />
                     <CardTitle className="text-xl">{resource.title}</CardTitle>
                   </div>
                   <CardDescription className="text-sm">
@@ -133,14 +133,14 @@ const Resources = () => {
                   <ul className="space-y-2 mb-4">
                     {resource.items.map((item, index) => (
                       <li key={index} className="flex items-start space-x-2 text-sm text-gray-700">
-                        <span className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 flex-shrink-0" />
+                        <span className="w-1.5 h-1.5 bg-sky-600 rounded-full mt-2 flex-shrink-0" />
                         <span>{item}</span>
                       </li>
                     ))}
                   </ul>
                   <Button 
                     variant="outline" 
-                    className="w-full flex items-center justify-center space-x-2 hover:bg-blue-50"
+                    className="w-full flex items-center justify-center space-x-2 hover:bg-blue-50 border-blue-300"
                     onClick={() => window.open(resource.link, '_blank')}
                   >
                     <span>{resource.linkText}</span>
@@ -153,15 +153,15 @@ const Resources = () => {
         </div>
 
         <div className="mt-12 bg-white rounded-lg shadow-sm border p-6">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Important Phone Numbers</h3>
+          <h3 className="text-xl font-semibold text-blue-900 mb-4">Important Phone Numbers</h3>
           <div className="grid md:grid-cols-2 gap-4 text-sm">
             <div>
-              <h4 className="font-medium text-gray-900 mb-2">Emergency Services</h4>
+              <h4 className="font-medium text-blue-900 mb-2">Emergency Services</h4>
               <p>Emergency: 911</p>
               <p>Non-Emergency Police: 311</p>
             </div>
             <div>
-              <h4 className="font-medium text-gray-900 mb-2">General Resources</h4>
+              <h4 className="font-medium text-blue-900 mb-2">General Resources</h4>
               <p>NC 211 (Information & Referral): 2-1-1</p>
               <p>NC DMV: (919) 715-7000</p>
             </div>
