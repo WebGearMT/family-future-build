@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Tag, Clock, Percent, Gift, Star, Search, Filter, AlertCircle, RefreshCw } from 'lucide-react';
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import AppHeader from "@/components/ui/app-header";
 //import AppHeader from "@/components/ui/app-header";
 import EmptySearchComponent from "@/components/ui/empty-search-component";
 //import { useAuth } from "@/contexts/AuthContext";
@@ -222,8 +225,6 @@ const VouchersAndCouponsPage: React.FC = () => {
     error: null,
     lastFetch: null
   });
-  
-  //const { user, isAuthenticated, signOut } = useAuth();
 
   // Fetch vouchers from database
   const fetchVouchers = async (showLoading = true) => {
@@ -232,7 +233,7 @@ const VouchersAndCouponsPage: React.FC = () => {
         setFetchState(prev => ({ ...prev, loading: true, error: null }));
       }
 
-      const response = await fetch('../../server/api.php?table=vouchersCoupons', {
+      const response = await fetch('../../server/api.php/vouchersCoupons', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -337,12 +338,33 @@ const VouchersAndCouponsPage: React.FC = () => {
       </button>
     </div>
   );
+  
+  const { user, isAuthenticated, signOut } = useAuth();
+  
+  const handleSignIn = () => {
+    navigate("/signin");
+  };
 
+  const handleSignUp = () => {
+    navigate("/signup");
+  };
+
+  const handleSignOut = () => {
+    signOut();
+  };	
+	
   return (
     <div className="min-h-screen bg-gray-50 py-6 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-      
+      	<AppHeader
+        	mode={isAuthenticated ? "dashboard" : "welcome"}
+        	user={user}
+	        onSignIn={handleSignIn}
+	        onSignUp={handleSignUp}
+	        onSignOut={handleSignOut}
+	        showMenu={false}
+      />
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
             <h1 className="text-3xl font-bold text-gray-900">Vouchers & Coupons</h1>
