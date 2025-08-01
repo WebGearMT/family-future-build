@@ -1,22 +1,31 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, ChangeEvent } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
+import {perform_validated_POST_request, 
+  displayErrorMsg, 
+  throwAsyncError } from './logic/asyncTools';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Send, Paperclip, Image } from 'lucide-react';
 import FileAttachment from "./FileAttachment";
 import ImageAttachment from "./ImageAttachment";
-import PollCreator from './PollCreator';
-import QuestionnaireCreator from './QuestionnaireCreator';
+import { PollCreator, 
+TypePollOption, 
+TypePoll, 
+TypePollCreator } from './PollCreator';
+import { QuestionnaireCreator, 
+TypeQuestion, 
+TypeQuestionnaire, 
+TypeQuestionnaireCreator } from './QuestionnaireCreator';
 
 
-interface WSMessage {
+export interface WSMessage {
   type: 'send_message' | 'message_sent' | 'message_failed' | 'file_uploaded' | 'file_upload_failed' | 'typing' | 'user_joined' | 'receive_message';
   id: string;
   payload: any;
   timestamp: number;
 }
 
-interface MessageFile {
+export interface MessageFile {
   id: string;
   name: string;
   type: string;
@@ -26,7 +35,7 @@ interface MessageFile {
   file?: File;
 }
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string;
   text: string;
   timestamp: Date;
@@ -34,29 +43,33 @@ interface ChatMessage {
   files: MessageFile[];
   userId: string;
 }
-/*
-interface questionnaireProps {
 
+interface UploadResult {
+  success: boolean;
+  url?: string;
+  fileId?: string;
 }
 
-interface pollProps {
-	
+interface ChatInputProps {
+  chatroomId: string;  
+  message: ChatMessage;
+  files: MessageFile[];
 }
-*/
+
 export const ChatInput: React.FC<ChatInputProps> = ({ chatroomId }) => {
-  const [message, setMessage] = useState('');
-  const [messageToSend, setMessageToSend] = useState<string | null>(null);
+  // const pendingMessages = useRef<Map<string, ChatMessage>>(new Map());
+  // const reconnectTimeoutRef = useRef<NodeJS.Timeout>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState<string>('');
+  //const [messageToSend, setMessageToSend] = useState<string | null>(null);
   const [sentMessages, setSentMessages] = useState<ChatMessage[]>([]);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [attachedImages, setAttachedImages] = useState<File[]>([]);
-  const [questionnaireToSend, setQuestionnaireToSend] = useState<any>(null);
-  const [pollToSend, setPollToSend] = useState<any>(null);
-  const [socket, setSocket] = useState<WebSocket | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
-  const pendingMessages = useRef<Map<string, ChatMessage>>(new Map());
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  // const [questionnaireToSend, setQuestionnaireToSend] = useState<any>(null);
+  // const [pollToSend, setPollToSend] = useState<any>(null);
+  // const [socket, setSocket] = useState<WebSocket | null>(null);
+  // const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
 
 
 
@@ -92,9 +105,13 @@ const wsConnectionStatus = {
   [ReadyState.UNINSTANTIATED]: 'uninstantiated',
 }[readyState];
 
-
+// The ID used for identifying a message.
 const generateId = (): string => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+// The ID used for identifying a user.
+const generateUid = (): string => `user-${Math.random().toString(36).substr(2, 9)}`;
+
+// The basic structure of the message
 const createMessageFile = (file: File): MessageFile => ({
   id: generateId(),
   name: file.name,
@@ -104,6 +121,7 @@ const createMessageFile = (file: File): MessageFile => ({
   file
 });
 
+// Create a message that shows UI updates in advance of being send.
 const createOptimisticMessage = (
   text: string, 
   files: File[], 
@@ -118,14 +136,22 @@ const createOptimisticMessage = (
   userId
 });
 
-// File upload (remains the same)
+const collectFilesFromInput = (files: File[]) => {
+  setAttachedFiles(files);
+  
+  // Only set images if files are actually images
+  const imageFiles = files.filter(file => file.type.startsWith('image/'));
+  setAttachedImages(imageFiles);
+};
+
+// File upload 
 const uploadFileHttp = async (file: File, messageId: string): Promise<{ success: boolean; url?: string; fileId: string }> => {
   try {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('messageId', messageId);
     
-    const response = await fetch('/api/upload', {
+    const response = await fetch('../../../api.php/uploads', {
       method: 'POST',
       body: formData
     });
@@ -145,7 +171,7 @@ const uploadFileHttp = async (file: File, messageId: string): Promise<{ success:
   }
 };
 
-// Message status update functions (remain the same)
+// Message status update function
 const updateMessageStatus = useCallback((
   messageId: string, 
   status: ChatMessage['status']
@@ -157,6 +183,7 @@ const updateMessageStatus = useCallback((
   );
 }, []);
 
+// File status update function
 const updateFileStatus = useCallback((
   messageId: string,
   fileId: string,
@@ -245,7 +272,7 @@ const sendMessageViaWS = useCallback((text: string, files: File[], messageId?: s
     payload: {
       messageId: msgId,
       text,
-      userId: 'current_user_id', // Replace with actual user ID
+      userId: generateId(), // Replace with actual user ID
       chatRoom: 'general', // Replace with actual chat room
       fileCount: files.length
     },
@@ -256,81 +283,121 @@ const sendMessageViaWS = useCallback((text: string, files: File[], messageId?: s
   return true;
 }, [readyState, sendWSMessage]);
 
-// Main message sending handler (updated to use new WebSocket functions)
-useEffect(() => {
-  const sendMessage = async () => {
-    if (!message?.trim() && attachedFiles.length === 0 && attachedImages.length === 0) return;
-    if (isLoading) return;
 
-    const messageText = message.trim();
-    const allFiles = [...attachedFiles, ...attachedImages];
-    const userId = 'current_user_id'; // Replace with actual user ID
-    
-    // Create optimistic message
-    const optimisticMessage = createOptimisticMessage(messageText, attachedFiles, attachedImages, userId);
-    setSentMessages(prev => [...prev, optimisticMessage]);
-    
-    // Clear inputs immediately
+
+
+/* ***messageSend Related Functionality*** */
+
+// Function used for clearing input
+const clearInput = () => {
     setMessage('');
     setAttachedFiles([]);
     setAttachedImages([]);
     setError('');
     setIsLoading(true);
+};
 
-    try {
-      // Handle file uploads first (if any)
-      if (allFiles.length > 0) {
-        const uploadPromises = allFiles.map(file => uploadFileHttp(file, optimisticMessage.id));
-        const uploadResults = await Promise.all(uploadPromises);
+// The function used for preparing the message to be sent.
+const prepareMessageForSending = (
+  msgTxt: string, 
+  attachedFS: File[], 
+  attachedImgs: File[], 
+  uid: ChatMessage["userId"]) => {
+		// Create optimistic message
+    const optimisticMessage = createOptimisticMessage(msgTxt, attachedFS, attachedImgs, uid);
+    setSentMessages(prev => [...prev, optimisticMessage]);
+    return optimisticMessage;
+};
+
+// The function used for displaying file upload status
+const updateFileStatusesFromResults = (uploadResults: UploadResult[], opMsg: ChatMessage) => {
+		uploadResults.forEach((result, index) => {
+        const file = opMsg.files[index];
+        updateFileStatus(
+          opMsg.id,
+          file.id,
+          result.success ? 'uploaded' : 'failed',
+          result.url
+        );
+    });
+    
+    return uploadResults;
+};
+
+// The handle used for handling file upload failures
+const handleUploadFailures = (results: UploadResult[]) => {
+		const failedUploads = results.filter(result => !result.success);
+    if (failedUploads.length > 0) {
+      	return setError(`${failedUploads.length} file(s) failed to upload`);
+    }
+    return;
+};
+
+// The function used for handling any file uploads sent along with the message.
+const handleFileUploads = async (filesUploaded: File[], opMessage: ChatMessage) => {
+		// Handle file uploads (if any)
+      let uploadResults;
+      
+      if (filesUploaded.length > 0) {
+        const uploadPromises = filesUploaded.map(file => uploadFileHttp(file, opMessage.id));
+        uploadResults = await Promise.all(uploadPromises);
+        setAttachedFiles(filesUploaded);
+        setAttachedImages(filesUploaded);
         
         // Update file statuses based on upload results
-        uploadResults.forEach((result, index) => {
-          const file = optimisticMessage.files[index];
-          updateFileStatus(
-            optimisticMessage.id,
-            file.id,
-            result.success ? 'uploaded' : 'failed',
-            result.url
-          );
-        });
+        updateFileStatusesFromResults(uploadResults, opMessage);
+				 
         
         // Check if any uploads failed
-        const failedUploads = uploadResults.filter(result => !result.success);
-        if (failedUploads.length > 0) {
-          setError(`${failedUploads.length} file(s) failed to upload`);
-        }
+        handleUploadFailures(uploadResults);
       }
+      
+      return uploadResults;
+};
 
-      // Send message via WebSocket
-      if (wsConnectionStatus === 'connected') {
-        const sent = sendMessageViaWS(messageText, allFiles, optimisticMessage.id);
+// The handle used for handling the message via Web Sockets
+const handleWebSocketSend = (msgTxt: string, files: File[], opMsg: ChatMessage) => {
+		if (wsConnectionStatus === 'connected') {
+        const sent = sendMessageViaWS(msgTxt, files, opMsg.id);
+        
         if (!sent) {
           throw new Error('Failed to send message via WebSocket');
         }
-      } else {
-        setError('Not connected. Message will be sent when connection is restored.');
-        updateMessageStatus(optimisticMessage.id, 'failed');
-      }
-
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Send message error:', errorMsg);
-      setError(errorMsg);
-      updateMessageStatus(optimisticMessage.id, 'failed');
-    } finally {
-      setIsLoading(false);
+        
+        return sent;
+        
+    } else {
+        updateMessageStatus(opMsg.id, 'failed');
+        return setError('Not connected. Message will be sent when connection is restored.');
+        
     }
-  };
-
-  // Trigger send when message or files change
-  if ((message?.trim() || attachedFiles.length > 0 || attachedImages.length > 0) && !isLoading) {
-    sendMessage();
-  }
-}, [message, attachedFiles, attachedImages, isLoading, wsConnectionStatus, sendMessageViaWS]);
-
-const handleSendMessage = () => {
-	sendMessage();
 };
+
+// The handle used for handling any errors that occured during message transfer
+const handleSendError = (opMsg: ChatMessage, error: Error) => {
+		const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    setError(errorMsg);
+    updateMessageStatus(opMsg.id, 'failed');
+    
+    return console.error('Send message error:', errorMsg);
+};
+
+// Typing indicator (simplified)
+const sendTypingIndicator = useCallback(() => {
+  if (readyState === ReadyState.OPEN) {
+    const wsMessage: WSMessage = {
+      type: 'typing',
+      id: generateId(),
+      payload: {
+        userId: generateUid(),
+        chatRoom: 'general'
+      },
+      timestamp: Date.now()
+    };
+    sendWSMessage(JSON.stringify(wsMessage));
+  }
+}, [readyState, sendWSMessage]);
 
 // Retry failed message (updated)
 const retryMessage = useCallback(async (messageId: string) => {
@@ -348,21 +415,51 @@ const retryMessage = useCallback(async (messageId: string) => {
   }
 }, [sentMessages, wsConnectionStatus, sendMessageViaWS]);
 
-// Typing indicator (simplified)
-const sendTypingIndicator = useCallback(() => {
-  if (readyState === ReadyState.OPEN) {
-    const wsMessage: WSMessage = {
-      type: 'typing',
-      id: generateId(),
-      payload: {
-        userId: 'current_user_id',
-        chatRoom: 'general'
-      },
-      timestamp: Date.now()
-    };
-    sendWSMessage(JSON.stringify(wsMessage));
+// Main message sending handler (updated to use new WebSocket functions)
+const sendMessage = async (message: string) => {
+    if (!message?.trim() && attachedFiles.length === 0 && attachedImages.length === 0) return;
+    if (isLoading) return;
+
+    const messageText = message.trim();
+    const allFiles = [...attachedFiles, ...attachedImages];
+    const userId = generateUid();
+    
+    // Prepare message for sending
+    const optimisticMessage = prepareMessageForSending(messageText, attachedFiles, attachedImages, userId);
+    clearInput();
+
+    try {
+      // Handle file uploads first (if any)
+      handleFileUploads(allFiles, optimisticMessage);
+
+      // Send message via WebSocket
+      handleWebSocketSend(messageText, allFiles, optimisticMessage);
+
+    } catch (error: any) {
+      handleSendError(optimisticMessage, error);
+      retryMessage(optimisticMessage.id);
+    	
+    } finally {
+      setIsLoading(false);
+    }
+};
+const handleSendMessage = () => {
+ 	sendMessage(message);
+};
+
+// The handle used for calling handleFileUploads on the UI file input.
+/*
+const processFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+  const filesToUpload = event.target.files;
+  if (filesToUpload) {
+    const filesArray: File[] = Array.from(filesToUpload);
+    collectFilesFromInput(filesArray);
   }
-}, [readyState, sendWSMessage]);
+};
+
+
+
+
 
 // Connection status for UI
 const getConnectionStatusText = () => {
@@ -376,122 +473,141 @@ const getConnectionStatusText = () => {
 };
 
 
-  // useEffect that runs when questionnaireToSend changes
-  useEffect(() => {
-    const sendQuestionnaire = async () => {
-      if (!questionnaireToSend) return; // Don't run if no questionnaire to send
-      
-      try {
-        console.log('Questionnaire data:', questionnaireToSend);
-        
-        // Send questionnaire to backend
-        const response = await fetch("../../server/api.php/questionnaires", {
+
+	/* ***Questionnaire Related Functionality*** */
+	/*
+	// The function used to create the POST request for storing questionnaires.
+	const createQuestionnaireRequest = async () => {
+			try {
+			const response = await fetch("../../../server/api.php/questionnaires", {
           method: "POST",
           credentials: "include",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(questionnaireToSend),
-        });
-        
-        console.log("response: ", response);
-        
-      if (response.ok && result.success) {
+      });
+      if (response.status === 201) {
+      	return response;
+      }
+      
+      } catch (e) {
+      	setError(e);
+      	console.error('Error in response: ', e);
+      }
+	};
+	
+	// The handle used to handle API related errors.
+	const handleApiError = (result: Error) => {
+			const errorMsg = result.message || 'Failed to send questionnaire';
+      
+      setError(errorMsg);
+      
+      return console.error('Error:', errorMsg);
+	};
+	
+	// The handle that handles the state of the questionnaire HTTP response.
+	const parseAndValidateResponse = async (res): Promise<TypeQuestionnaire> => {
+			const result: Response = await res.json();
+			if (res.ok && result.success) {
         console.log('questionnaire sent:', result.data);
-        const result = await response.json();
         
-        // Add sent message to state
-        setQuestionnaireToSend();
+        // Add sent questionnaire to state
+        setQuestionnaireToSend(result);
         
-        // Clear message input after successful send
+        // Clear input after successful send
         setQuestionnaireToSend(null);
       } else {
-        const errorMsg = result.message || 'Failed to send questionnaire';
-        console.error('Error:', errorMsg);
-        setError(errorMsg);
+      	handleApiError(result);
       }
-    } catch (error) {
-      const errorMsg = 'Network error: ' + error.message;
+	};
+	
+	// The handle used for handling network errors.
+	const handleNetworkError = (error) => {
+			const errorMsg = 'Network error: ' + error.message;
       console.error(errorMsg);
       setError(errorMsg);
       setQuestionnaireToSend(null);
+	};
+
+  // The function that runs when questionnaireToSend changes
+  const sendQuestionnaire = async () => {
+      if (!questionnaireToSend) return; // Don't run if no questionnaire to send
+      
+      try {
+       
+        console.log('Questionnaire data:', questionnaireToSend);
+        
+        // Send questionnaire to backend
+        const response = createQuestionnaireRequest();
+        
+        console.log("response: ", response);
+        
+        parseAndValidateResponse(response);
+
+       // Send questionnaire to back-end
+    } catch (error) {
+      handleNetworkError(error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Only send questionnaire if there's content and not currently loading
-  if (questionnaireToSend && !isLoading) {
-    sendQuestionnaire();
-  }
-    
-  }, [questionnaireToSend]); // Runs when questionnaireToSend changes
-
   // Function to trigger the questionnaire sending
+  
   const handleSendQuestionnaire = (questionnaire: any) => {
     setQuestionnaireToSend(questionnaire);
   };
+*/
 
-  // useEffect that runs when pollToSend changes
-  useEffect(() => {
-    const sendPoll = async () => {
-      if (!pollToSend) return; // Don't run if no poll to send
+	
+	/* ***Poll Related Functionality*** */
+	
+  // The main function that runs when pollToSend changes
+  /*
+  const sendPoll = async (poll: TypePoll) => {
+      if (!poll) return; // Don't run if no poll to send
       
       try {
-        console.log('Poll data:', pollToSend);
+        console.log('Poll data:', poll);
         
-        // Send poll to backend
-        const response = await fetch("../../server/api.php?./polls", {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(pollToSend),
-        });
+        // Perform a request, validate it, parse it and store the result.
+    		const resultSuccess = perform_validated_POST_request("poll", poll);
+      	console.log("response post-await: ", response);
         
-        console.log("response: ", response);
-        
-      if (response.ok && result.success) {
-        console.log('poll sent:', result.data);
-        const result = await response.json();
-        
-        // Add sent message to state
-        setPollToSend();
-        
-        // Clear message input after successful send
+        // Add poll to state
+        setPollToSend(poll);
+        // Clear poll input after successful send
         setPollToSend(null);
-      } else {
-        const errorMsg = result.message || 'Failed to send poll.';
-        console.error('Error:', errorMsg);
-        setError(errorMsg);
-      }
+        
     } catch (error) {
-      const errorMsg = 'Network error: ' + error.message;
-      console.error(errorMsg);
+    	const errorMsg = displayErrorMsg(error, "poll");
       setError(errorMsg);
       setPollToSend(null);
     } finally {
       setIsLoading(false);
     }
 
-  // Only send questionnaire if there's content and not currently loading
-  if (poll && !isLoading) {
-    sendPoll();
-  }
   };
-    sendPoll();
-  }, [pollToSend]); // Runs when pollToSend changes
 
   // Function to trigger the poll sending
-  const handleSendPoll = (poll: any) => {
-    setPollToSend(poll);
+  const handleSendPoll = (pollToSend: TypePollCreator.onSendPoll) => {
+    setPollToSend(pollToSend);
   };
+  */
+	const handleChange = (event: ChangeEvent) => {
+    if (event.target instanceof HTMLInputElement) {
+      return setMessage(event.target.value);
+    }
+		
+	};
   
-    const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      return setSentMessages(sentMessages);
+    } else {
+      return sendTypingIndicator();
     }
   };
 
@@ -500,32 +616,38 @@ const getConnectionStatusText = () => {
       <div className="flex flex-wrap items-center gap-2">
         {/* Moderator tools placeholder - will be built later */}
         <div className="flex items-center gap-1">
-          <FileAttachment 
-    		onFilesSelected={attachedFiles}
+        <FileAttachment 
+    		onFilesSelected={collectFilesFromInput}
     		maxFiles={3}
     		maxFileSize={25}
 			allowedTypes={['.pdf', '.docx', '.txt', '.zip']} // Optional restriction
   		  />
           <ImageAttachment 
-    		onImagesSelected={attachedImages}
+    		onImagesSelected={collectFilesFromInput}
     		maxImages={5}
     		maxFileSize={10}
   		  />
+  		  	{/* Add attributes similar to: value, onChange onSendPoll={handleSendPoll} }
            <QuestionnaireCreator onSendQuestionnaire={handleSendQuestionnaire} />
-          <PollCreator onSendPoll={handleSendPoll} />
+          <PollCreator />
+          {*/}
         </div>
         
         {/* Message Input */}
         <Input
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onChange={handleChange}
+          onKeyDown={handleKeyPress}
           placeholder="Type a message..."
           className="flex-1"
         />
         
         {/* Send Button */}
-        <Button onClick={handleSendMessage} size="sm">
+        <Button 
+          onClick={handleSendMessage} 
+          size="sm"
+          disabled={isLoading}
+        >
           <Send className="h-4 w-4" />
         </Button>
       </div>
