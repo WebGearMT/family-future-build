@@ -1,21 +1,21 @@
 import React, {useState, useEffect} from 'react';
+import { ChatMessage, TypeChatMessage } from './ChatMessage';
+import { TypePoll } from './PollCreator';
+import { TypeQuestionnaire } from './QuestionnaireCreator';
+import { perform_validated_GET_request, displayErrorMsg } from '../../utils/asyncTools';
+
 
 interface ChatMessagesProps {
   chatroomId: string;
-}
-
-interface QuestionnaireProps {
-  chatroomId: string;
-}
-
-interface PollProps {
-  chatroomId: string;
+  message: TypeChatMessage[];
+  chatPoll: TypePoll;
+  chatQuestionnaie: TypeQuestionnaire;
 }
 
 export const ChatMessages: React.FC<ChatMessagesProps> = ({ chatroomId }) => {
-  const [messageToDisplay, setMessageToDisplay] = useState('');
-  const [poll, setPoll] = useState([]);
-  const [questionnaire, setQuestionnaire] = useState([]);
+  const [messageToDisplay, setMessageToDisplay] = useState<TypeChatMessage[]>([]);
+  const [poll, setPoll] = useState<TypePoll[]>([]);
+  const [questionnaire, setQuestionnaire] = useState<TypeQuestionnaire[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState({
     messages: false,
@@ -28,121 +28,136 @@ const setLoadingState = (key: keyof typeof loading, value: boolean) => {
   setLoading(prev => ({ ...prev, [key]: value }));
 };
 
+
 // Messages handler with simplified error handling
-useEffect(() => {
-  const handleDisplayMessages = async () => {
+  const handleDisplayMessages =  async (): Promise<void> => {
     try {
+    	// Show a loading animation
       setLoadingState('messages', true);
       setError('');
       
       console.log('Message data:', messageToDisplay);
       
-      const response = await fetch("../../server/api.php/messages");
-      console.log("response pre-await: ", response);
+      // Perform a request, validate it, parse it and store the result.
+      const messages = await perform_validated_GET_request(undefined, "messages");
+      const data = await messages.json();
+    
+    // Validate response format
+    if (!Array.isArray(data)) {
+      throw new Error("Invalid response format: Expected array of messages");
+    }
+    
+    // Update messages state
+    setMessageToDisplay(data);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      console.log("response post-await: ", response);
-      
-      if (result.error) {
-        throw new Error(result.error);
-      }
-      
-      setMessageToDisplay(result);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to fetch messages';
-      console.error('Error fetching messages:', errorMsg);
-      setError(errorMsg);
+    // Handle any errors returned by the function and stop the loading animation.
+    } catch (error: any) {
+      	const errorMsg = displayErrorMsg(error, "messages");
+      	setError(errorMsg);
+        return Promise.resolve();
     } finally {
       setLoadingState('messages', false);
     }
   };
-  
-  handleDisplayMessages();
-}, [poll]);
+
 
 // Poll handler with simplified error handling
 useEffect(() => {
-  const handleDisplayPoll = async () => {
+  const handleDisplayPoll = async (): Promise<void> => {
     try {
+    	// Show a loading animation
       setLoadingState('polls', true);
       setError('');
       
       console.log('Poll data:', poll);
       
-      const response = await fetch("../../server/api.php?table=polls");
-      console.log("response pre-await: ", response);
+      // Perform a request, validate it, parse it and store the result.
+      const pollToSend = await perform_validated_GET_request(undefined, "polls");
+      const data = await pollToSend.json();
+      // Update the message state with the result returned.
+      setPoll([data]);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      console.log("response post-await: ", response);
-      
-      if (result.error) {
-        throw new Error(result.error);
-      }
-      
-      setPoll(result);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to fetch polls';
-      console.error('Error fetching polls:', errorMsg);
-      setError(errorMsg);
+    // Handle any errors returned by the function and stop the loading animation.
+    } catch (error: any) {
+      	const errorMsg = displayErrorMsg(error, "poll");
+      	setError(errorMsg);
     } finally {
       setLoadingState('polls', false);
     }
   };
   
+  const controller = new AbortController();
+  
   handleDisplayPoll();
+  controller.abort();
 }, [poll]);
+
 
 // Questionnaire handler with simplified error handling
 useEffect(() => {
-  const handleDisplayQuestionnaire = async () => {
+  const handleDisplayQuestionnaire = async (): Promise<void> => {
     try {
+    	// Show a loading animation
       setLoadingState('questionnaires', true);
       setError('');
       
       console.log('Questionnaire data:', questionnaire);
       
-      const response = await fetch("../../server/api.php?table=questionnaires");
-      console.log("response pre-await: ", response);
+      // Perform a request, validate it, parse it and store the result.
+      const questionnaieToSend = await perform_validated_GET_request(undefined, "questionnaires");
+      const data = await questionnaieToSend.json();
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      // Update the message state with the result returned.
+      setQuestionnaire(data);
       
-      const result = await response.json();
-      console.log("response post-await: ", response);
-      
-      if (result.error) {
-        throw new Error(result.error);
-      }
-      
-      setQuestionnaire(result);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Failed to fetch questionnaires';
-      console.error('Error fetching questionnaires:', errorMsg);
-      setError(errorMsg);
+    // Handle any errors returned by the function and stop the loading animation.
+    } catch (error: any) {
+      	const errorMsg = displayErrorMsg(error, "questionnaire");
+      	setError(errorMsg);
     } finally {
-      setLoadingState('questionnaires', false);
+      setLoadingState('polls', false);
     }
   };
   
+  const controller = new AbortController();
+  
   handleDisplayQuestionnaire();
+  
+  controller.abort();
 }, [questionnaire]);
+
   
   return (
     <div className="flex-1 p-4 overflow-y-auto">
       {/* Messages will be displayed here */}
       <div className="text-center text-muted-foreground mt-8">
-        {messageToDisplay ? <div>{messageToDisplay}</div> : <div /> }
-        {poll ? <div>{poll}</div> : <div /> }
-        {questionnaire ? <div>{questionnaire}</div> : <div /> }
+        {messageToDisplay.length > 0 ? (
+        <div className="messages-container">
+        {messageToDisplay.map((message) => (
+          <ChatMessage key={message.id} message={message} />
+        ))}
+      </div>
+      ) : (
+        <div>No messages to display</div>
+      )}
+        {poll.length > 0 ? (
+        <div>
+          {poll.map((p, index) => (
+            <div key={index}>{/* Render poll data */}</div>
+          ))}
+        </div>
+      ) : (
+        <div />
+      )}
+        {questionnaire.length > 0 ? (
+        <div>
+          {questionnaire.map((q, index) => (
+            <div key={index}>{/* Render questionnaire data */}</div>
+          ))}
+        </div>
+      ) : (
+        <div />
+      )}
       </div>
     </div>
   );
